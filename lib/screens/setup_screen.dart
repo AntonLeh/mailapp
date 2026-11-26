@@ -77,7 +77,7 @@ class _SetupScreenState extends State<SetupScreen> {
               shrinkWrap: true,
               children: [
                 DropdownButtonFormField<ProviderPreset>(
-                  initialValue: _preset,
+                  value: _preset,
                   decoration: const InputDecoration(labelText: 'Provider'),
                   items: [
                     for (final p in ProviderPreset.all)

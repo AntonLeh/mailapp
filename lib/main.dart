@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:pdfrx/pdfrx.dart';
 
 import 'models/mail_account.dart';
 import 'screens/inbox_screen.dart';

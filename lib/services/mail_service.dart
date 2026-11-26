@@ -37,12 +37,25 @@ class MailService {
   }
 
   /// Lädt die Binärdaten eines Anhangs, z. B. eines PDFs.
-  /// TODO: Anhang-Download ist noch nicht implementiert (API-Klärung folgt).
+  /// Die Nachricht wird mit ihrer Sequenznummer komplett nachgeladen,
+  /// danach wird der Teil über seine fetchId herausgezogen.
   Future<Uint8List?> fetchAttachment(
     MimeMessage message,
     ContentInfo info,
   ) async {
-    throw UnsupportedError('Anhang-Download ist in dieser Version noch nicht umgesetzt.');
+    final client = await _connectImap();
+    try {
+      await client.selectInbox();
+      final result = await client.fetchMessage(
+        message.sequenceId!,
+        'BODY.PEEK[]',
+      );
+      final full = result.messages.first;
+      final part = full.getPart(info.fetchId);
+      return part?.decodeContentBinary();
+    } finally {
+      await client.logout();
+    }
   }
 
   /// Versendet eine einfache Textnachricht über SMTP.

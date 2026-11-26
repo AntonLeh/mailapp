@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   enough_mail: ^2.1.6
-  pdfrx: 1.0.80
+  pdfx: ^2.6.0
   flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
