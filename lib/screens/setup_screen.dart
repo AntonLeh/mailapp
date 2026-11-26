@@ -7,7 +7,7 @@ import '../services/account_store.dart';
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key, required this.onSaved});
 
-  final void Function(MailAccount account, String password) onSaved;
+  final void Function(AccountConfig account, String password) onSaved;
 
   @override
   State<SetupScreen> createState() => _SetupScreenState();
@@ -44,7 +44,7 @@ class _SetupScreenState extends State<SetupScreen> {
       _saving = true;
       _error = null;
     });
-    final account = MailAccount(
+    final account = AccountConfig(
       provider: _preset.name,
       email: _email.text.trim(),
       imapHost: _imapHost.text.trim(),

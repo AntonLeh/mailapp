@@ -10,7 +10,7 @@ import '../models/mail_account.dart';
 class MailService {
   MailService(this.account, this.password);
 
-  final MailAccount account;
+  final AccountConfig account;
   final String password;
 
   Future<ImapClient> _connectImap() async {
@@ -29,10 +29,7 @@ class MailService {
     final client = await _connectImap();
     try {
       await client.selectInbox();
-      final result = await client.fetchRecentMessages(
-        messageCount: count,
-        criteriaString: 'BODY.PEEK[]',
-      );
+      final result = await client.fetchRecentMessages(messageCount: count);
       return result.messages;
     } finally {
       await client.logout();
@@ -47,8 +44,9 @@ class MailService {
     final client = await _connectImap();
     try {
       await client.selectInbox();
-      final part = await client.fetchMessagePart(message, info.fetchId);
-      return part.decodeContentBinary();
+      final full = await client.fetchMessageContents(message);
+      final part = full.getPart(info.fetchId);
+      return part?.decodeContentBinary();
     } finally {
       await client.logout();
     }

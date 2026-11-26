@@ -15,7 +15,7 @@ class InboxScreen extends StatefulWidget {
     required this.onLogout,
   });
 
-  final MailAccount account;
+  final AccountConfig account;
   final String password;
   final Future<void> Function() onLogout;
 

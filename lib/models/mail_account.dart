@@ -1,7 +1,7 @@
 /// Ein eingerichtetes Mail-Konto. Das Passwort wird NICHT hier gespeichert,
 /// sondern verschlüsselt im Systemschlüsselbund (siehe AccountStore).
-class MailAccount {
-  const MailAccount({
+class AccountConfig {
+  const AccountConfig({
     required this.provider,
     required this.email,
     required this.imapHost,
@@ -32,7 +32,7 @@ class MailAccount {
         'smtpImplicitTls': smtpImplicitTls,
       };
 
-  factory MailAccount.fromJson(Map<String, dynamic> json) => MailAccount(
+  factory AccountConfig.fromJson(Map<String, dynamic> json) => AccountConfig(
         provider: json['provider'] as String,
         email: json['email'] as String,
         imapHost: json['imapHost'] as String,

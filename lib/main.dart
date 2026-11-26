@@ -8,7 +8,6 @@ import 'services/account_store.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  pdfrxFlutterInitialize();
   runApp(const MailApp());
 }
 
@@ -44,7 +43,7 @@ class _Root extends StatefulWidget {
 
 class _RootState extends State<_Root> {
   final _store = AccountStore();
-  MailAccount? _account;
+  AccountConfig? _account;
   String? _password;
   bool _loading = true;
 
