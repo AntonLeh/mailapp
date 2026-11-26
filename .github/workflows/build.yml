@@ -42,8 +42,12 @@ jobs:
           D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
           echo "== $D"
           grep -rn -E "Future<[^(]*> +(fetch[A-Za-z]*|select[A-Za-z]*|login|connectToServer|authenticate|sendMessage|quit|logout|startTls|ehlo)\(" "$D/lib/src/imap/imap_client.dart" "$D/lib/src/smtp/smtp_client.dart" | cut -c1-220
-          echo "== MimeMessage/Content"
-          grep -rn -E "getPart|decodeContentBinary|findContentInfo|class ContentInfo|fetchId|fileName" "$D/lib/src/mail/mime_message.dart" "$D/lib/src/mime_data.dart" "$D/lib/src/mail/mime_data.dart" "$D/lib/src/mail/content_info.dart" 2>/dev/null | cut -c1-200 | head -40
+          echo "== fetch signatures"
+          for f in fetchMessage fetchMessages fetchRecentMessages fetchMessagesByCriteria; do grep -n -A7 "Future<FetchImapResult> $f(" "$D/lib/src/imap/imap_client.dart"; done | cut -c1-200
+          echo "== Mime classes and part accessors"
+          grep -rn -E "^class |getPart\(|decodeContentBinary\(|findContentInfo\(|List<MimePart> get|parts\b.*get|allPartsFlat|fetchId|fileName" "$D/lib/src/mail/mime_message.dart" "$D/lib/src/mail/mime_part.dart" "$D/lib/src/mail/mime_data.dart" "$D/lib/src/mail/content_info.dart" 2>/dev/null | cut -c1-200 | head -60
+          echo "== pdfrx API"
+          P=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/pdfrx-* | head -1); echo "$P"; grep -rn -E "static .*pdfrxFlutterInitialize|factory PdfViewer|static .*data\(" "$P/lib" | cut -c1-200 | head -10
 
       - run: flutter build apk --release
 
