@@ -109,11 +109,13 @@ class MailService {
   Future<void> setSeen(Mailbox box, MimeMessage message, bool seen) =>
       _run((c) async {
         await c.selectMailbox(box);
-        if (seen) {
-          await c.markSeen(_uidSequence(message));
-        } else {
-          await c.markUnseen(_uidSequence(message));
-        }
+        // Direkt per UID: markSeen/markUnseen senden sonst eine Sequenznummer,
+        // die der Server bei manchen Nachrichten als ungültig ablehnt.
+        await c.uidStore(
+          _uidSequence(message),
+          [MessageFlags.seen],
+          action: seen ? StoreAction.add : StoreAction.remove,
+        );
         message.isSeen = seen;
       });
 
