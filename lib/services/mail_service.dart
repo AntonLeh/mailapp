@@ -105,6 +105,38 @@ class MailService {
         message.isFlagged = true;
       });
 
+  /// Nur Kopfzeilen und Flags der neuesten Nachrichten (für neue-Mail-Prüfung).
+  Future<List<MimeMessage>> fetchLatestHeaders(Mailbox box, {int count = 15}) =>
+      _run((c) async {
+        final selected = await c.selectMailbox(box);
+        final total = selected.messagesExists;
+        if (total < 1) return <MimeMessage>[];
+        final lower = (total - count + 1) < 1 ? 1 : total - count + 1;
+        final result = await c.fetchMessages(
+          MessageSequence.fromRange(lower, total),
+          '(UID FLAGS BODY.PEEK[HEADER])',
+        );
+        return result.messages;
+      });
+
+  /// Neuen Ordner auf oberster Ebene anlegen.
+  Future<void> createFolder(String name) =>
+      _run((c) async {
+        await c.createMailbox(name);
+      });
+
+  /// Ordner umbenennen.
+  Future<void> renameFolder(Mailbox box, String newName) =>
+      _run((c) async {
+        await c.renameMailbox(box, newName);
+      });
+
+  /// Ordner löschen (samt Inhalt).
+  Future<void> deleteFolder(Mailbox box) =>
+      _run((c) async {
+        await c.deleteMailbox(box);
+      });
+
   /// Stern entfernen.
   Future<void> unsetFlagged(Mailbox box, MimeMessage message) =>
       _run((c) async {

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:enough_mail/enough_mail.dart';
 import 'package:flutter/material.dart';
 
 import '../models/mail_account.dart';
 import '../services/mail_service.dart';
+import '../services/notifier.dart';
 import '../ui/format.dart';
 import '../ui/widgets.dart';
 import 'compose_screen.dart';
@@ -21,17 +24,23 @@ enum MailFilter {
   final IconData icon;
 }
 
-/// Hauptansicht: Ordner (Drawer), Filter, Suche, Liste mit Seiten und Verfassen.
+/// Hauptansicht: Konten und Ordner (Drawer), Filter, Suche, Liste, Verfassen.
 class InboxScreen extends StatefulWidget {
   const InboxScreen({
     super.key,
     required this.account,
     required this.password,
+    required this.accounts,
+    required this.onSwitchAccount,
+    required this.onAddAccount,
     required this.onLogout,
   });
 
   final AccountConfig account;
   final String password;
+  final List<AccountConfig> accounts;
+  final Future<void> Function(AccountConfig account) onSwitchAccount;
+  final VoidCallback onAddAccount;
   final Future<void> Function() onLogout;
 
   @override
@@ -53,13 +62,32 @@ class _InboxScreenState extends State<InboxScreen> {
   MailFilter _filter = MailFilter.all;
   String? _error;
 
+  // Neue-Mail-Prüfung: höchste bekannte UID im Posteingang.
+  int? _lastUid;
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _loadFolders();
+    _pollTimer = Timer.periodic(const Duration(seconds: 90), (_) => _checkNewMail());
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Mailbox? get _trash => MailService.findTrash(_boxes);
+
+  /// Systemordner lassen sich nicht umbenennen oder löschen.
+  bool _isSystemFolder(Mailbox box) =>
+      box.hasFlag(MailboxFlag.inbox) ||
+      box.hasFlag(MailboxFlag.trash) ||
+      box.hasFlag(MailboxFlag.junk) ||
+      box.hasFlag(MailboxFlag.sent) ||
+      box.hasFlag(MailboxFlag.drafts);
 
   Future<void> _loadFolders() async {
     setState(() {
@@ -68,12 +96,18 @@ class _InboxScreenState extends State<InboxScreen> {
     });
     try {
       final boxes = await _service.listMailboxes();
+      final previous = _current;
       final inbox = boxes.where((b) => b.hasFlag(MailboxFlag.inbox)).firstOrNull ??
           boxes.where((b) => b.name.toLowerCase() == 'inbox').firstOrNull ??
           boxes.firstOrNull;
+      // Gewählten Ordner nach Umbenennen wiederfinden, sonst Posteingang.
+      final current = (previous == null
+              ? null
+              : boxes.where((b) => b.encodedPath == previous.encodedPath).firstOrNull) ??
+          inbox;
       setState(() {
         _boxes = boxes;
-        _current = inbox;
+        _current = current;
       });
       await _refresh();
     } catch (e) {
@@ -127,6 +161,40 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
+  /// Prüft im Hintergrund, ob ungelesene Mails dazugekommen sind.
+  Future<void> _checkNewMail() async {
+    final box = _current;
+    if (box == null || !box.hasFlag(MailboxFlag.inbox) || _loading || !mounted) {
+      return;
+    }
+    try {
+      final headers = await _service.fetchLatestHeaders(box);
+      final uids = headers.map((m) => m.uid).whereType<int>().toList();
+      if (uids.isEmpty) return;
+      final newest = uids.reduce((a, b) => a > b ? a : b);
+      final previous = _lastUid;
+      _lastUid = newest;
+      if (previous == null) return; // erste Runde: nur Ausgangspunkt merken
+      final fresh = headers
+          .where((m) => (m.uid ?? 0) > previous && !m.isSeen)
+          .toList();
+      if (fresh.isEmpty) return;
+      for (final m in fresh.take(3)) {
+        final from = m.from?.firstOrNull;
+        await Notifier.show(
+          id: m.uid ?? 0,
+          title: from?.personalName?.isNotEmpty == true
+              ? from!.personalName!
+              : (from?.email ?? 'Neue Mail'),
+          body: m.decodeSubject() ?? '(kein Betreff)',
+        );
+      }
+      if (mounted) _refresh();
+    } catch (_) {
+      // Stilles Scheitern: die nächste Runde versucht es erneut.
+    }
+  }
+
   void _selectFolder(Mailbox box) {
     Navigator.of(context).pop(); // Drawer schließen
     setState(() {
@@ -134,6 +202,7 @@ class _InboxScreenState extends State<InboxScreen> {
       _messages.clear();
       _query = '';
       _searching = false;
+      _lastUid = null;
     });
     _refresh();
   }
@@ -194,6 +263,95 @@ class _InboxScreenState extends State<InboxScreen> {
     );
   }
 
+  // ---------- Ordner verwalten ----------
+
+  Future<String?> _askName(String title, {String initial = ''}) {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
+  }
+
+  Future<void> _createFolder() async {
+    Navigator.of(context).pop(); // Drawer schließen
+    final name = await _askName('Neuer Ordner');
+    if (name == null || name.isEmpty) return;
+    await _folderAction(() => _service.createFolder(name), 'Ordner angelegt.');
+  }
+
+  Future<void> _renameFolder(Mailbox box) async {
+    final name = await _askName('Ordner umbenennen', initial: box.name);
+    if (name == null || name.isEmpty || name == box.name) return;
+    await _folderAction(
+      () => _service.renameFolder(box, name),
+      'Ordner umbenannt.',
+    );
+  }
+
+  Future<void> _deleteFolder(Mailbox box) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('„${box.name}“ löschen?'),
+        content: const Text(
+          'Der Ordner und alle Nachrichten darin werden entfernt. Das lässt sich nicht rückgängig machen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _folderAction(() => _service.deleteFolder(box), 'Ordner gelöscht.');
+  }
+
+  Future<void> _folderAction(Future<void> Function() action, String done) async {
+    try {
+      await action();
+      _snack(done);
+      await _loadFolders();
+    } catch (e) {
+      _snack('Fehlgeschlagen: $e');
+    }
+  }
+
+  // ---------- Konten ----------
+
+  void _switchAccount(AccountConfig account) {
+    Navigator.of(context).pop(); // Drawer schließen
+    if (account.email == widget.account.email) return;
+    widget.onSwitchAccount(account);
+  }
+
   List<MimeMessage> get _visible {
     final q = _query.toLowerCase();
     return _messages.where((m) {
@@ -221,7 +379,6 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final visible = _visible;
-    final account = widget.account.email;
 
     return Scaffold(
       appBar: AppBar(
@@ -235,7 +392,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
                 onChanged: (v) => setState(() => _query = v),
               )
-            : Text(_current?.name ?? account),
+            : Text(_current?.name ?? widget.account.email),
         actions: [
           IconButton(
             tooltip: _searching ? 'Suche beenden' : 'Suchen',
@@ -281,15 +438,33 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
               ),
               const Divider(height: 24),
-              ListTile(
-                leading: SenderAvatar(name: account),
-                title: Text(
-                  account,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+              for (final acc in widget.accounts)
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  selected: acc.email == widget.account.email,
+                  selectedTileColor: scheme.primaryContainer,
+                  leading: SenderAvatar(name: acc.email),
+                  title: Text(
+                    acc.email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(acc.provider),
+                  onTap: () => _switchAccount(acc),
                 ),
-                subtitle: Text(widget.account.provider),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                leading: const Icon(Icons.add),
+                title: const Text('Konto hinzufügen'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  widget.onAddAccount();
+                },
               ),
               const Divider(height: 24),
               for (final box in _boxes)
@@ -302,7 +477,30 @@ class _InboxScreenState extends State<InboxScreen> {
                   leading: Icon(_iconFor(box)),
                   title: Text(box.name),
                   onTap: () => _selectFolder(box),
+                  trailing: _isSystemFolder(box)
+                      ? null
+                      : PopupMenuButton<String>(
+                          tooltip: 'Ordner-Optionen',
+                          onSelected: (value) {
+                            Navigator.of(context).pop();
+                            if (value == 'rename') _renameFolder(box);
+                            if (value == 'delete') _deleteFolder(box);
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'rename', child: Text('Umbenennen')),
+                            PopupMenuItem(value: 'delete', child: Text('Löschen')),
+                          ],
+                        ),
                 ),
+              const Divider(height: 24),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                leading: const Icon(Icons.create_new_folder_outlined),
+                title: const Text('Ordner anlegen'),
+                onTap: _createFolder,
+              ),
             ],
           ),
         ),

@@ -5,9 +5,12 @@ import '../services/account_store.dart';
 
 /// Ersteinrichtung: Provider wählen, E-Mail-Adresse und Passwort eingeben.
 class SetupScreen extends StatefulWidget {
-  const SetupScreen({super.key, required this.onSaved});
+  const SetupScreen({super.key, required this.onSaved, this.onCancel});
 
   final void Function(AccountConfig account, String password) onSaved;
+
+  /// Wenn gesetzt, wird ein Abbrechen-Knopf angezeigt (z. B. beim Hinzufügen).
+  final VoidCallback? onCancel;
 
   @override
   State<SetupScreen> createState() => _SetupScreenState();
@@ -66,7 +69,16 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Konto einrichten')),
+      appBar: AppBar(
+        title: const Text('Konto einrichten'),
+        leading: widget.onCancel == null
+            ? null
+            : IconButton(
+                tooltip: 'Abbrechen',
+                icon: const Icon(Icons.close),
+                onPressed: widget.onCancel,
+              ),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
