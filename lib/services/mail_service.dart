@@ -4,9 +4,9 @@ import 'package:enough_mail/enough_mail.dart';
 
 import '../models/mail_account.dart';
 
-/// Kapselt IMAP (Empfang) und SMTP (Versand). Jede Operation öffnet eine
-/// kurze Verbindung und schließt sie danach wieder. Das ist für eine
-/// erste Version einfach und robust.
+/// Kapselt IMAP (Empfang, Ordner, Flags, Verschieben) und SMTP (Versand).
+/// Jede Operation öffnet eine kurze Verbindung, wählt bei Bedarf den Ordner
+/// aus und schließt die Verbindung danach wieder.
 class MailService {
   MailService(this.account, this.password);
 
@@ -24,41 +24,104 @@ class MailService {
     return client;
   }
 
-  /// Lädt die neuesten Nachrichten aus dem Posteingang (neueste zuerst).
-  Future<List<MimeMessage>> fetchInbox({int count = 30}) async {
+  Future<T> _run<T>(Future<T> Function(ImapClient client) action) async {
     final client = await _connectImap();
     try {
-      await client.selectInbox();
-      final result = await client.fetchRecentMessages(messageCount: count);
-      return result.messages;
+      return await action(client);
     } finally {
       await client.logout();
     }
   }
 
-  /// Lädt die Binärdaten eines Anhangs, z. B. eines PDFs.
-  /// Die Nachricht wird mit ihrer Sequenznummer komplett nachgeladen,
-  /// danach wird der Teil über seine fetchId herausgezogen.
+  /// Alle Ordner des Kontos.
+  Future<List<Mailbox>> listMailboxes() =>
+      _run((c) => c.listMailboxes(recursive: true));
+
+  /// Die neuesten Nachrichten eines Ordners (neueste zuerst).
+  /// Enthält UID, Flags und den vollständigen Inhalt.
+  Future<List<MimeMessage>> fetchMessages(Mailbox box, {int count = 40}) =>
+      _run((c) async {
+        await c.selectMailbox(box);
+        final result = await c.fetchRecentMessages(
+          messageCount: count,
+          criteria: '(UID FLAGS BODY.PEEK[])',
+        );
+        return result.messages;
+      });
+
+  /// Binärdaten eines Anhangs (z. B. PDF).
   Future<Uint8List?> fetchAttachment(
+    Mailbox box,
     MimeMessage message,
     ContentInfo info,
-  ) async {
-    final client = await _connectImap();
-    try {
-      await client.selectInbox();
-      final result = await client.fetchMessage(
-        message.sequenceId!,
-        'BODY.PEEK[]',
-      );
-      final full = result.messages.first;
-      final part = full.getPart(info.fetchId);
-      return part?.decodeContentBinary();
-    } finally {
-      await client.logout();
+  ) =>
+      _run((c) async {
+        await c.selectMailbox(box);
+        final result = await c.fetchMessage(
+          message.sequenceId!,
+          '(BODY.PEEK[])',
+        );
+        return result.messages.first.getPart(info.fetchId)?.decodeContentBinary();
+      });
+
+  /// Gelesen (true) bzw. ungelesen (false) markieren.
+  Future<void> setSeen(Mailbox box, MimeMessage message, bool seen) =>
+      _run((c) async {
+        await c.selectMailbox(box);
+        if (seen) {
+          await c.markSeen(_uidSequence(message));
+        } else {
+          await c.markUnseen(_uidSequence(message));
+        }
+        message.isSeen = seen;
+      });
+
+  /// Mit Stern markieren (das Entfernen der Markierung ist noch nicht umgesetzt).
+  Future<void> setFlagged(Mailbox box, MimeMessage message) =>
+      _run((c) async {
+        await c.selectMailbox(box);
+        await c.markFlagged(_uidSequence(message));
+        message.isFlagged = true;
+      });
+
+  /// Nachricht in einen anderen Ordner verschieben (z. B. Papierkorb, Spam).
+  Future<void> moveMessage(Mailbox from, MimeMessage message, Mailbox to) =>
+      _run((c) async {
+        await c.selectMailbox(from);
+        await c.uidMove(_uidSequence(message), targetMailbox: to);
+      });
+
+  /// Papierkorb des Kontos anhand der Ordner-Flags oder des Namens.
+  static Mailbox? findTrash(List<Mailbox> boxes) =>
+      _findBox(boxes, MailboxFlag.trash, const ['papierkorb', 'trash']);
+
+  /// Spam-Ordner des Kontos anhand der Ordner-Flags oder des Namens.
+  static Mailbox? findJunk(List<Mailbox> boxes) =>
+      _findBox(boxes, MailboxFlag.junk, const ['spam', 'junk']);
+
+  static Mailbox? _findBox(
+    List<Mailbox> boxes,
+    MailboxFlag flag,
+    List<String> names,
+  ) {
+    for (final box in boxes) {
+      if (box.hasFlag(flag)) return box;
     }
+    for (final box in boxes) {
+      if (names.contains(box.name.toLowerCase())) return box;
+    }
+    return null;
   }
 
-  /// Versendet eine einfache Textnachricht über SMTP.
+  static MessageSequence _uidSequence(MimeMessage message) {
+    final uid = message.uid;
+    if (uid == null) {
+      throw StateError('Nachricht hat keine UID. Bitte den Ordner neu laden.');
+    }
+    return MessageSequence.fromId(uid, isUid: true);
+  }
+
+  /// Versendet eine Textnachricht über SMTP.
   Future<void> send({
     required String to,
     required String subject,

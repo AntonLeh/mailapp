@@ -36,23 +36,6 @@ jobs:
 
       - run: flutter pub get
 
-      - name: API-Signaturen von enough_mail ausgeben (Diagnose)
-        continue-on-error: true
-        run: |
-          D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
-          echo "== MessageSequence factories"
-          grep -n -E "^\s+(static )?MessageSequence[.a-zA-Z]*\(" "$D/lib/src/imap/message_sequence.dart" | cut -c1-160
-          echo "== fetchRecentMessages body"
-          grep -n -A22 "Future<FetchImapResult> fetchRecentMessages(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
-          echo "== fetchMessages body head"
-          grep -n -A14 "Future<FetchImapResult> fetchMessages(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
-          echo "== UID in fetch command"
-          grep -n -E "'UID|\"UID|UID FLAGS|\(UID " "$D/lib/src/imap/imap_client.dart" | cut -c1-180 | head -12
-          echo "== store body (markSeen path)"
-          grep -n -A10 "Future<StoreImapResult> markSeen(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
-          echo "== Mailbox name/path/isInbox"
-          grep -n -E "final String (name|path)|String get (name|path)|bool get isInbox|String encodedName|late final String" "$D/lib/src/imap/mailbox.dart" | cut -c1-160 | head -8
-
       - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4

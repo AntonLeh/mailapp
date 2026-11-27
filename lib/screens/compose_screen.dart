@@ -4,19 +4,29 @@ import '../services/mail_service.dart';
 
 /// Neue Nachricht verfassen und über SMTP versenden.
 class ComposeScreen extends StatefulWidget {
-  const ComposeScreen({super.key, required this.service, required this.from});
+  const ComposeScreen({
+    super.key,
+    required this.service,
+    required this.from,
+    this.initialTo = '',
+    this.initialSubject = '',
+    this.initialBody = '',
+  });
 
   final MailService service;
   final String from;
+  final String initialTo;
+  final String initialSubject;
+  final String initialBody;
 
   @override
   State<ComposeScreen> createState() => _ComposeScreenState();
 }
 
 class _ComposeScreenState extends State<ComposeScreen> {
-  final _to = TextEditingController();
-  final _subject = TextEditingController();
-  final _body = TextEditingController();
+  late final _to = TextEditingController(text: widget.initialTo);
+  late final _subject = TextEditingController(text: widget.initialSubject);
+  late final _body = TextEditingController(text: widget.initialBody);
   bool _sending = false;
 
   Future<void> _send() async {
