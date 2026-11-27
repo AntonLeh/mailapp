@@ -36,6 +36,23 @@ jobs:
 
       - run: flutter pub get
 
+      - name: API-Diagnose (Anhänge, Flags, file_picker)
+        continue-on-error: true
+        run: |
+          D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
+          F=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/file_picker-* | head -1)
+          echo "== MessageBuilder attach"
+          grep -rn -E "addBinary\(|addFile\(|addAttachment\(|static MediaType guessFromFileName|guessFromFileName\(" "$D/lib/src/mail/message_builder.dart" "$D/lib/src/media_type.dart" "$D/lib/src/mail/mail_client.dart" 2>/dev/null | cut -c1-200 | head -20
+          grep -rln "addBinary(" "$D/lib" | head -3
+          echo "== store signature + StoreAction"
+          grep -n -A8 "Future<StoreImapResult> store(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
+          grep -rn -E "enum StoreAction|StoreAction\.(remove|add|replace)" "$D/lib/src" | cut -c1-180 | head -6
+          grep -rn -E "class MessageFlags|static const String flagged|static const String seen" "$D/lib/src" | cut -c1-180 | head -5
+          echo "== file_picker"
+          grep -rn -E "Future<String\?> saveFile\(|Future<FilePickerResult\?> pickFiles\(" -A12 "$F/lib/src/file_picker.dart" "$F/lib/src/platform_file_picker.dart" 2>/dev/null | cut -c1-180 | head -60
+          echo "== ContentInfo fields"
+          grep -rn -E "class ContentInfo|fetchId|fileName|contentType" "$D/lib/src/mail/content_info.dart" 2>/dev/null | cut -c1-160 | head -8
+
       - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
