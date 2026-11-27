@@ -1,6 +1,9 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Systembenachrichtigungen für neue Mails (Android und Windows).
+/// Systembenachrichtigungen für neue Mails. Derzeit nur Android: die
+/// Windows-Unterstützung des Pakets ist in dieser Version nicht verfügbar.
 /// Fehler werden geschluckt, damit die App auch ohne Benachrichtigungen läuft.
 class Notifier {
   Notifier._();
@@ -9,16 +12,11 @@ class Notifier {
   static bool _ready = false;
 
   static Future<void> init() async {
-    if (_ready) return;
+    if (_ready || !Platform.isAndroid) return;
     try {
       await _plugin.initialize(
         const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-          windows: WindowsInitializationSettings(
-            appName: 'Mail',
-            appUserModelId: 'de.anton.mail.app',
-            guid: '2b8f9d4e-6c1a-4f7e-9a3b-5d2e8c7f1a90',
-          ),
         ),
       );
       await _plugin
@@ -50,7 +48,6 @@ class Notifier {
             importance: Importance.high,
             priority: Priority.high,
           ),
-          windows: WindowsNotificationDetails(),
         ),
       );
     } catch (_) {
