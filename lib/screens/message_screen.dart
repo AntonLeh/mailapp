@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:enough_mail/enough_mail.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import '../services/mail_service.dart';
 import '../ui/format.dart';
@@ -197,7 +197,7 @@ class _MessageScreenState extends State<MessageScreen> {
         child: Container(
           color: Colors.white,
           padding: const EdgeInsets.all(12),
-          child: Html(data: html),
+          child: HtmlWidget(html),
         ),
       );
     }
