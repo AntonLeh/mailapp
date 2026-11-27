@@ -44,6 +44,11 @@ jobs:
               s = re.sub(r'(compileOptions\s*\{)', r'\1\n        isCoreLibraryDesugaringEnabled = true', s, count=1)
               s += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
               open(p, 'w', encoding='utf-8').write(s)
+          s = open(p, encoding='utf-8').read()
+          if 'checkReleaseBuilds' not in s:
+              # Lint-Analyse stürzt im Runner ab (Fehler im Lint-Werkzeug); für den Build nicht nötig.
+              s = re.sub(r'(android\s*\{)', r'\1\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }', s, count=1)
+              open(p, 'w', encoding='utf-8').write(s)
           print('gradle patched:', p)
           PY
           grep -n -E 'compileSdk|minSdk|Desugaring' android/app/build.gradle* || true
