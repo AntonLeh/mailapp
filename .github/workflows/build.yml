@@ -40,16 +40,17 @@ jobs:
         continue-on-error: true
         run: |
           D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
-          echo "== $D"
-          for f in listMailboxes selectMailboxByPath selectMailbox markSeen markUnseen markFlagged store uidStore uidMove moveMessage deleteMessage moveMessages markMessagesSeen uidStoreMessages copyMessage fetchMessage; do
-            grep -n -A4 -E "Future<[^=]*> +$f\(" "$D/lib/src/imap/imap_client.dart" | cut -c1-200
-          done
-          echo "== mail_client high level"
-          grep -n -E "Future<[^=]*> +(markRead|markUnread|deleteMessage|moveMessage|markFlagged|listMailboxes|flagMessage|unflagMessage)\(" -A4 "$D/lib/src/mail/mail_client.dart" | cut -c1-200 | head -60
-          echo "== Mailbox / flags"
-          grep -rn -E "class Mailbox |isJunk|isTrash|isDrafts|isSent|flags|MailboxFlag\.(junk|trash|drafts|sent)|isSpam|Junk" "$D/lib/src/imap/mailbox.dart" "$D/lib/src/mail/mailbox.dart" 2>/dev/null | cut -c1-200 | head -30
-          echo "== MimeMessage flags/seen"
-          grep -rn -E "isSeen|isFlagged|hasFlag|setFlag|isUnseen|flags" "$D/lib/src/mail/mime_message.dart" | cut -c1-200 | head -20
+          echo "== MessageSequence"
+          grep -rn -E "static MessageSequence (fromId|fromMessage|fromRange|fromIds)|bool isUid|class MessageSequence" -A3 "$D/lib/src" | cut -c1-180 | head -40
+          echo "== MimeMessage getters"
+          grep -rn -E "(int\?|bool|bool\?|List<MailboxFlag>|List<String>|Mailbox\?) +get (uid|isSeen|isFlagged|flags)|int\? uid|get isSeen|get isFlagged|bool get seen|bool get flagged|isFlagged\b.*=>|isSeen\b.*=>" "$D/lib/src" | cut -c1-180 | head -20
+          echo "== uidMove full"
+          grep -n -A12 "Future<GenericImapResult> uidMove(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
+          echo "== MailClient ctor / MailAccount"
+          grep -rn -E "MailClient\(|MailAccount\.fromManualSettings\(|static MailAccount fromManualSettings|Future<void> connect\(|Future<void> deleteMessage|class MailClient " "$D/lib/src/mail/mail_client.dart" "$D/lib/src/mail/mail_account.dart" 2>/dev/null | cut -c1-180 | head -12
+          grep -rln "fromManualSettings" "$D/lib/src" | head -3
+          echo "== deleteMessages / moveMessages on ImapClient"
+          grep -rn -E "Future<[^=]*> +(deleteMessages|moveMessages|markMessagesSeen)\(" -A4 "$D/lib/src" | cut -c1-180 | head -30
 
       - run: flutter build apk --release
 
