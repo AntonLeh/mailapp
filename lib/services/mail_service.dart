@@ -7,6 +7,14 @@ import '../models/mail_account.dart';
 /// Kapselt IMAP (Empfang, Ordner, Flags, Verschieben) und SMTP (Versand).
 /// Jede Operation öffnet eine kurze Verbindung, wählt bei Bedarf den Ordner
 /// aus und schließt die Verbindung danach wieder.
+/// Ein Anhang, der beim Senden mitgeschickt wird.
+class OutgoingAttachment {
+  const OutgoingAttachment(this.name, this.bytes);
+
+  final String name;
+  final Uint8List bytes;
+}
+
 class MailService {
   MailService(this.account, this.password);
 
@@ -152,6 +160,7 @@ class MailService {
     required String subject,
     required String body,
     String cc = '',
+    List<OutgoingAttachment> attachments = const [],
   }) async {
     final domain = account.email.split('@').last;
     final smtp = SmtpClient(domain, isLogEnabled: false);
@@ -176,6 +185,13 @@ class MailService {
       ]
       ..subject = subject
       ..text = body;
+    for (final a in attachments) {
+      builder.addBinary(
+        a.bytes,
+        MediaType.guessFromFileName(a.name),
+        filename: a.name,
+      );
+    }
     await smtp.sendMessage(builder.buildMimeMessage());
     await smtp.quit();
   }

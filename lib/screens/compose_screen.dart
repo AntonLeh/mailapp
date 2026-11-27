@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../services/mail_service.dart';
@@ -32,6 +35,29 @@ class _ComposeScreenState extends State<ComposeScreen> {
   bool _showCc = false;
   bool _sending = false;
   String? _error;
+  final List<OutgoingAttachment> _attachments = [];
+
+  Future<void> _pickAttachments() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null) return;
+    final added = <OutgoingAttachment>[];
+    for (final f in result.files) {
+      final bytes = f.bytes;
+      if (bytes == null) continue;
+      added.add(OutgoingAttachment(f.name, Uint8List.fromList(bytes)));
+    }
+    if (!mounted || added.isEmpty) return;
+    setState(() => _attachments.addAll(added));
+  }
+
+  String _sizeLabel(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 
   @override
   void dispose() {
@@ -65,6 +91,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
         cc: _cc.text,
         subject: _subject.text,
         body: _body.text,
+        attachments: _attachments,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -158,6 +185,50 @@ class _ComposeScreenState extends State<ComposeScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _attachments.isEmpty
+                            ? 'Keine Anhänge'
+                            : 'Anhänge (${_attachments.length})',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _sending ? null : _pickAttachments,
+                      icon: const Icon(Icons.attach_file),
+                      label: const Text('Anhang hinzufügen'),
+                    ),
+                  ],
+                ),
+                for (var i = 0; i < _attachments.length; i++)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: scheme.secondaryContainer,
+                        child: Icon(Icons.insert_drive_file_outlined,
+                            color: scheme.onSecondaryContainer),
+                      ),
+                      title: Text(
+                        _attachments[i].name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(_sizeLabel(_attachments[i].bytes.length)),
+                      trailing: IconButton(
+                        tooltip: 'Entfernen',
+                        icon: const Icon(Icons.close),
+                        onPressed: _sending
+                            ? null
+                            : () => setState(() => _attachments.removeAt(i)),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
