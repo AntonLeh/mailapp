@@ -41,15 +41,15 @@ jobs:
         run: |
           D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
           echo "== $D"
-          grep -rn -E "Future<[^(]*> +(fetch[A-Za-z]*|select[A-Za-z]*|login|connectToServer|authenticate|sendMessage|quit|logout|startTls|ehlo)\(" "$D/lib/src/imap/imap_client.dart" "$D/lib/src/smtp/smtp_client.dart" | cut -c1-220
-          echo "== fetch signatures"
-          for f in fetchMessage fetchMessages fetchRecentMessages fetchMessagesByCriteria; do grep -n -A7 "Future<FetchImapResult> $f(" "$D/lib/src/imap/imap_client.dart"; done | cut -c1-200
-          echo "== Mime API"
-          grep -rn -E "decodeContentBinary\(|class MimeMessage|class MimePart|getPart\(|sequenceId|List<MimePart> get parts|MimePart> get|findContentInfo\(" "$D/lib/src" | cut -c1-200 | head -40
-          echo "== fetchRecentMessages"
-          sed -n '1826,1840p' "$D/lib/src/imap/imap_client.dart" | cut -c1-200
-          echo "== pdfrx API"
-          P=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/pdfrx-* | head -1); echo "$P"; grep -rn -E "static .*pdfrxFlutterInitialize|factory PdfViewer|static .*data\(" "$P/lib" | cut -c1-200 | head -10
+          for f in listMailboxes selectMailboxByPath selectMailbox markSeen markUnseen markFlagged store uidStore uidMove moveMessage deleteMessage moveMessages markMessagesSeen uidStoreMessages copyMessage fetchMessage; do
+            grep -n -A4 -E "Future<[^=]*> +$f\(" "$D/lib/src/imap/imap_client.dart" | cut -c1-200
+          done
+          echo "== mail_client high level"
+          grep -n -E "Future<[^=]*> +(markRead|markUnread|deleteMessage|moveMessage|markFlagged|listMailboxes|flagMessage|unflagMessage)\(" -A4 "$D/lib/src/mail/mail_client.dart" | cut -c1-200 | head -60
+          echo "== Mailbox / flags"
+          grep -rn -E "class Mailbox |isJunk|isTrash|isDrafts|isSent|flags|MailboxFlag\.(junk|trash|drafts|sent)|isSpam|Junk" "$D/lib/src/imap/mailbox.dart" "$D/lib/src/mail/mailbox.dart" 2>/dev/null | cut -c1-200 | head -30
+          echo "== MimeMessage flags/seen"
+          grep -rn -E "isSeen|isFlagged|hasFlag|setFlag|isUnseen|flags" "$D/lib/src/mail/mime_message.dart" | cut -c1-200 | head -20
 
       - run: flutter build apk --release
 
