@@ -186,6 +186,22 @@ class MailService {
         await c.uidMove(_uidSequence(message), targetMailbox: to);
       });
 
+  /// Mehrere Nachrichten auf einmal verschieben.
+  Future<void> moveMessages(
+    Mailbox from,
+    List<MimeMessage> messages,
+    Mailbox to,
+  ) =>
+      _run((c) async {
+        final uids = messages.map((m) => m.uid).whereType<int>().toList();
+        if (uids.isEmpty) return;
+        await c.selectMailbox(from);
+        await c.uidMove(
+          MessageSequence.fromIds(uids, isUid: true),
+          targetMailbox: to,
+        );
+      });
+
   /// Papierkorb des Kontos anhand der Ordner-Flags oder des Namens.
   static Mailbox? findTrash(List<Mailbox> boxes) =>
       _findBox(boxes, MailboxFlag.trash, const ['papierkorb', 'trash']);

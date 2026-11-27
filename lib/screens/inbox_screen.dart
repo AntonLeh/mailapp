@@ -64,6 +64,59 @@ class _InboxScreenState extends State<InboxScreen> {
 
   // Neue-Mail-Prüfung: höchste bekannte UID im Posteingang.
   int? _lastUid;
+
+  // Mehrfachauswahl (über UIDs).
+  final Set<int> _selected = {};
+  bool get _selecting => _selected.isNotEmpty;
+
+  void _toggleSelect(MimeMessage m) {
+    final uid = m.uid;
+    if (uid == null) return;
+    setState(() {
+      if (!_selected.remove(uid)) _selected.add(uid);
+    });
+  }
+
+  List<Widget> _selectionActions() => [
+        IconButton(
+          tooltip: 'Alle auswählen',
+          icon: const Icon(Icons.select_all),
+          onPressed: () => setState(() {
+            _selected
+              ..clear()
+              ..addAll(_visible.map((m) => m.uid).whereType<int>());
+          }),
+        ),
+        IconButton(
+          tooltip: 'In den Papierkorb',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: _trashSelected,
+        ),
+      ];
+
+  /// Alle markierten Mails in den Papierkorb verschieben.
+  Future<void> _trashSelected() async {
+    final box = _current;
+    final trash = _trash;
+    if (box == null) return;
+    if (trash == null) {
+      _snack('Kein Papierkorb gefunden.');
+      return;
+    }
+    final victims = _messages.where((m) => _selected.contains(m.uid)).toList();
+    final count = victims.length;
+    setState(() {
+      _messages.removeWhere((m) => _selected.contains(m.uid));
+      _selected.clear();
+    });
+    try {
+      await _service.moveMessages(box, victims, trash);
+      _snack('$count ${count == 1 ? 'Mail' : 'Mails'} in den Papierkorb verschoben.');
+    } catch (e) {
+      _snack('Löschen fehlgeschlagen: $e');
+      _refresh();
+    }
+  }
   Timer? _pollTimer;
 
   @override
@@ -217,6 +270,7 @@ class _InboxScreenState extends State<InboxScreen> {
       _query = '';
       _searching = false;
       _lastUid = null;
+      _selected.clear();
     });
     _refresh();
   }
@@ -400,7 +454,16 @@ class _InboxScreenState extends State<InboxScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: _searching
+        leading: _selecting
+            ? IconButton(
+                tooltip: 'Auswahl aufheben',
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() => _selected.clear()),
+              )
+            : null,
+        title: _selecting
+            ? Text('${_selected.length} ausgewählt')
+            : _searching
             ? TextField(
                 autofocus: true,
                 decoration: const InputDecoration(
@@ -411,7 +474,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 onChanged: (v) => setState(() => _query = v),
               )
             : Text(_current?.name ?? widget.account.email),
-        actions: [
+        actions: _selecting ? _selectionActions() : [
           IconButton(
             tooltip: _searching ? 'Suche beenden' : 'Suchen',
             icon: Icon(_searching ? Icons.close : Icons.search),
@@ -593,11 +656,17 @@ class _InboxScreenState extends State<InboxScreen> {
                               ),
                             );
                           }
+                          final m = visible[i];
                           return _MessageTile(
-                            message: visible[i],
-                            snippet: _snippet(visible[i]),
-                            onTap: () => _openMessage(visible[i]),
-                            onDismissed: () => _trashFromList(visible[i]),
+                            message: m,
+                            snippet: _snippet(m),
+                            selecting: _selecting,
+                            selected: _selected.contains(m.uid),
+                            onTap: () => _selecting
+                                ? _toggleSelect(m)
+                                : _openMessage(m),
+                            onLongPress: () => _toggleSelect(m),
+                            onDismissed: () => _trashFromList(m),
                           );
                         },
                       ),
@@ -624,13 +693,19 @@ class _MessageTile extends StatelessWidget {
   const _MessageTile({
     required this.message,
     required this.snippet,
+    required this.selecting,
+    required this.selected,
     required this.onTap,
+    required this.onLongPress,
     required this.onDismissed,
   });
 
   final MimeMessage message;
   final String snippet;
+  final bool selecting;
+  final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
   final VoidCallback onDismissed;
 
   @override
@@ -646,7 +721,7 @@ class _MessageTile extends StatelessWidget {
 
     return Dismissible(
       key: ValueKey(message.uid ?? message.sequenceId ?? message.hashCode),
-      direction: DismissDirection.endToStart,
+      direction: selecting ? DismissDirection.none : DismissDirection.endToStart,
       onDismissed: (_) => onDismissed(),
       background: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -661,19 +736,28 @@ class _MessageTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: unread
-              ? scheme.primaryContainer.withValues(alpha: 0.35)
-              : scheme.surface,
+          color: selected
+              ? scheme.secondaryContainer
+              : unread
+                  ? scheme.primaryContainer.withValues(alpha: 0.35)
+                  : scheme.surface,
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: onTap,
+            onLongPress: onLongPress,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SenderAvatar(name: name),
+                  selected
+                      ? CircleAvatar(
+                          radius: 20,
+                          backgroundColor: scheme.primary,
+                          child: Icon(Icons.check, color: scheme.onPrimary),
+                        )
+                      : SenderAvatar(name: name),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
