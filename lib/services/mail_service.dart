@@ -37,16 +37,29 @@ class MailService {
   Future<List<Mailbox>> listMailboxes() =>
       _run((c) => c.listMailboxes(recursive: true));
 
-  /// Die neuesten Nachrichten eines Ordners (neueste zuerst).
+  /// Eine Seite Nachrichten eines Ordners, neueste zuerst.
+  /// Seite 0 sind die neuesten Nachrichten, Seite 1 die davor usw.
   /// Enthält UID, Flags und den vollständigen Inhalt.
-  Future<List<MimeMessage>> fetchMessages(Mailbox box, {int count = 40}) =>
+  Future<({List<MimeMessage> messages, bool hasMore})> fetchPage(
+    Mailbox box, {
+    required int page,
+    int pageSize = 40,
+  }) =>
       _run((c) async {
-        await c.selectMailbox(box);
-        final result = await c.fetchRecentMessages(
-          messageCount: count,
-          criteria: '(UID FLAGS BODY.PEEK[])',
+        final selected = await c.selectMailbox(box);
+        final total = selected.messagesExists;
+        final upper = total - page * pageSize;
+        if (upper < 1) {
+          return (messages: <MimeMessage>[], hasMore: false);
+        }
+        final lower = (upper - pageSize + 1) < 1 ? 1 : upper - pageSize + 1;
+        final result = await c.fetchMessages(
+          MessageSequence.fromRange(lower, upper),
+          '(UID FLAGS BODY.PEEK[])',
         );
-        return result.messages;
+        final messages = [...result.messages]
+          ..sort((a, b) => (b.sequenceId ?? 0).compareTo(a.sequenceId ?? 0));
+        return (messages: messages, hasMore: lower > 1);
       });
 
   /// Binärdaten eines Anhangs (z. B. PDF).
@@ -126,6 +139,7 @@ class MailService {
     required String to,
     required String subject,
     required String body,
+    String cc = '',
   }) async {
     final domain = account.email.split('@').last;
     final smtp = SmtpClient(domain, isLogEnabled: false);
@@ -144,6 +158,10 @@ class MailService {
     final builder = MessageBuilder()
       ..from = [MailAddress('', account.email)]
       ..to = [MailAddress('', to)]
+      ..cc = [
+        for (final addr in cc.split(',').map((a) => a.trim()))
+          if (addr.isNotEmpty) MailAddress('', addr),
+      ]
       ..subject = subject
       ..text = body;
     await smtp.sendMessage(builder.buildMimeMessage());

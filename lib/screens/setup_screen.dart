@@ -76,6 +76,23 @@ class _SetupScreenState extends State<SetupScreen> {
               padding: const EdgeInsets.all(24),
               shrinkWrap: true,
               children: [
+                Icon(Icons.mark_email_read_outlined,
+                    size: 56, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 12),
+                Text(
+                  'Willkommen',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Verbinde dein Postfach. Die Zugangsdaten bleiben auf diesem Gerät.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 28),
                 DropdownButtonFormField<ProviderPreset>(
                   value: _preset,
                   decoration: const InputDecoration(labelText: 'Provider'),

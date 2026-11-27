@@ -4,6 +4,7 @@ import 'models/mail_account.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/setup_screen.dart';
 import 'services/account_store.dart';
+import 'ui/theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,15 +19,9 @@ class MailApp extends StatelessWidget {
     return MaterialApp(
       title: 'Mail',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       home: const _Root(),
     );
   }
