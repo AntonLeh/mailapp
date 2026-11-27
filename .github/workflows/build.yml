@@ -40,17 +40,18 @@ jobs:
         continue-on-error: true
         run: |
           D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
-          echo "== MessageSequence"
-          grep -rn -E "static MessageSequence (fromId|fromMessage|fromRange|fromIds)|bool isUid|class MessageSequence" -A3 "$D/lib/src" | cut -c1-180 | head -40
-          echo "== MimeMessage getters"
-          grep -rn -E "(int\?|bool|bool\?|List<MailboxFlag>|List<String>|Mailbox\?) +get (uid|isSeen|isFlagged|flags)|int\? uid|get isSeen|get isFlagged|bool get seen|bool get flagged|isFlagged\b.*=>|isSeen\b.*=>" "$D/lib/src" | cut -c1-180 | head -20
-          echo "== uidMove full"
-          grep -n -A12 "Future<GenericImapResult> uidMove(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
-          echo "== MailClient ctor / MailAccount"
-          grep -rn -E "MailClient\(|MailAccount\.fromManualSettings\(|static MailAccount fromManualSettings|Future<void> connect\(|Future<void> deleteMessage|class MailClient " "$D/lib/src/mail/mail_client.dart" "$D/lib/src/mail/mail_account.dart" 2>/dev/null | cut -c1-180 | head -12
-          grep -rln "fromManualSettings" "$D/lib/src" | head -3
-          echo "== deleteMessages / moveMessages on ImapClient"
-          grep -rn -E "Future<[^=]*> +(deleteMessages|moveMessages|markMessagesSeen)\(" -A4 "$D/lib/src" | cut -c1-180 | head -30
+          echo "== MessageSequence factories"
+          grep -n -E "^\s+(static )?MessageSequence[.a-zA-Z]*\(" "$D/lib/src/imap/message_sequence.dart" | cut -c1-160
+          echo "== fetchRecentMessages body"
+          grep -n -A22 "Future<FetchImapResult> fetchRecentMessages(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
+          echo "== fetchMessages body head"
+          grep -n -A14 "Future<FetchImapResult> fetchMessages(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
+          echo "== UID in fetch command"
+          grep -n -E "'UID|\"UID|UID FLAGS|\(UID " "$D/lib/src/imap/imap_client.dart" | cut -c1-180 | head -12
+          echo "== store body (markSeen path)"
+          grep -n -A10 "Future<StoreImapResult> markSeen(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
+          echo "== Mailbox name/path/isInbox"
+          grep -n -E "final String (name|path)|String get (name|path)|bool get isInbox|String encodedName|late final String" "$D/lib/src/imap/mailbox.dart" | cut -c1-160 | head -8
 
       - run: flutter build apk --release
 
