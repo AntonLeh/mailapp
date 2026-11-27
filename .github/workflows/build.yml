@@ -37,7 +37,7 @@ jobs:
       - run: flutter pub get
 
       - name: App-Icons erzeugen
-        run: dart run flutter_launcher_icons
+        run: dart run flutter_launcher_icons -f flutter_launcher_icons-windows.yaml
 
       - name: API-Diagnose addBinary
         continue-on-error: true
@@ -69,7 +69,7 @@ jobs:
       - run: flutter pub get
 
       - name: App-Icons erzeugen
-        run: dart run flutter_launcher_icons
+        run: dart run flutter_launcher_icons -f flutter_launcher_icons-windows.yaml
 
       - run: flutter build windows --release
 
