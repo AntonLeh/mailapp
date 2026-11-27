@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:enough_mail/enough_mail.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 import '../services/mail_service.dart';
 import '../ui/format.dart';
@@ -77,13 +78,8 @@ class _MessageScreenState extends State<MessageScreen> {
         leaves: false,
       );
 
-  Future<void> _flag() => _run(
-        () => widget.service.setFlagged(widget.box, _m),
-        leaves: false,
-      );
-
-  Future<void> _unflag() => _run(
-        () => widget.service.unsetFlagged(widget.box, _m),
+  Future<void> _toggleFlag() => _run(
+        () => widget.service.setFlagged(widget.box, _m, !_m.isFlagged),
         leaves: false,
       );
 
@@ -190,6 +186,30 @@ class _MessageScreenState extends State<MessageScreen> {
     }
   }
 
+  /// Nachrichtentext: HTML bevorzugt (mit Bildern aus dem Netz), sonst Klartext.
+  /// HTML-Mails sind für helle Hintergründe gestaltet, daher steht der Inhalt
+  /// auf einer weißen Fläche, auch im Dunkelmodus.
+  Widget _buildBody(ThemeData theme) {
+    final html = _m.decodeTextHtmlPart();
+    if (html != null && html.trim().isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(12),
+          child: Html(data: html),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(18),
+      child: SelectableText(
+        _m.decodeTextPlainPart() ?? '(kein Text)',
+        style: const TextStyle(fontSize: 15, height: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -198,7 +218,6 @@ class _MessageScreenState extends State<MessageScreen> {
     final name = from?.personalName?.isNotEmpty == true
         ? from!.personalName!
         : (from?.email ?? '(unbekannt)');
-    final body = _m.decodeTextPlainPart() ?? _m.decodeTextHtmlPart() ?? '(kein Text)';
     final attachments = _m.findContentInfo();
     final inTrash = widget.box.hasFlag(MailboxFlag.trash);
 
@@ -223,9 +242,12 @@ class _MessageScreenState extends State<MessageScreen> {
             onPressed: _busy ? null : _toggleSeen,
           ),
           IconButton(
-            tooltip: 'Markieren',
-            icon: Icon(_m.isFlagged ? Icons.star : Icons.star_border),
-            onPressed: _busy ? null : (_m.isFlagged ? _unflag : _flag),
+            tooltip: _m.isFlagged ? 'Stern entfernen' : 'Mit Stern markieren',
+            icon: Icon(
+              _m.isFlagged ? Icons.star : Icons.star_border,
+              color: _m.isFlagged ? Colors.amber.shade700 : null,
+            ),
+            onPressed: _busy ? null : _toggleFlag,
           ),
           IconButton(
             tooltip: 'Als Spam verschieben',
@@ -296,13 +318,8 @@ class _MessageScreenState extends State<MessageScreen> {
           ),
           const SizedBox(height: 12),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: SelectableText(
-                body,
-                style: const TextStyle(fontSize: 15, height: 1.5),
-              ),
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: _buildBody(theme),
           ),
           if (attachments.isNotEmpty) ...[
             const SizedBox(height: 12),

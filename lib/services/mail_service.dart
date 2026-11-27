@@ -97,12 +97,23 @@ class MailService {
         message.isSeen = seen;
       });
 
-  /// Mit Stern markieren (das Entfernen der Markierung ist noch nicht umgesetzt).
-  Future<void> setFlagged(Mailbox box, MimeMessage message) =>
+  /// Stern setzen oder entfernen. Danach wird der Stand beim Server geprüft,
+  /// damit ein stiller Fehlschlag nicht unbemerkt bleibt.
+  Future<void> setFlagged(Mailbox box, MimeMessage message, bool flagged) =>
       _run((c) async {
+        final seq = _uidSequence(message);
         await c.selectMailbox(box);
-        await c.markFlagged(_uidSequence(message));
-        message.isFlagged = true;
+        await c.uidStore(
+          seq,
+          [MessageFlags.flagged],
+          action: flagged ? StoreAction.add : StoreAction.remove,
+        );
+        final check = await c.uidFetchMessages(seq, '(UID FLAGS)');
+        final serverState = check.messages.firstOrNull?.isFlagged ?? false;
+        if (serverState != flagged) {
+          throw StateError('Der Server hat die Markierung nicht übernommen.');
+        }
+        message.isFlagged = flagged;
       });
 
   /// Nur Kopfzeilen und Flags der neuesten Nachrichten (für neue-Mail-Prüfung).
@@ -145,17 +156,6 @@ class MailService {
         await c.deleteMailbox(box);
       });
 
-  /// Stern entfernen.
-  Future<void> unsetFlagged(Mailbox box, MimeMessage message) =>
-      _run((c) async {
-        await c.selectMailbox(box);
-        await c.store(
-          _uidSequence(message),
-          [MessageFlags.flagged],
-          action: StoreAction.remove,
-        );
-        message.isFlagged = false;
-      });
 
   /// Nachricht in einen anderen Ordner verschieben (z. B. Papierkorb, Spam).
   Future<void> moveMessage(Mailbox from, MimeMessage message, Mailbox to) =>
