@@ -149,7 +149,11 @@ jobs:
 
       - run: flutter pub get
 
-      - run: flutter build linux --release
+      - name: Linux-Release bauen
+        env:
+          # flutter_secure_storage bringt eine ältere json.hpp mit, die mit clang -Werror scheitert.
+          CXXFLAGS: -Wno-deprecated-literal-operator
+        run: flutter build linux --release
 
       - name: Als Archiv verpacken
         run: tar -czf mailapp-linux.tar.gz -C build/linux/x64/release/bundle .
