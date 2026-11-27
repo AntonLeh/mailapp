@@ -76,8 +76,7 @@ class _SetupScreenState extends State<SetupScreen> {
               padding: const EdgeInsets.all(24),
               shrinkWrap: true,
               children: [
-                Icon(Icons.mark_email_read_outlined,
-                    size: 56, color: Theme.of(context).colorScheme.primary),
+                Image.asset('assets/icon/app_icon.png', height: 96),
                 const SizedBox(height: 12),
                 Text(
                   'Willkommen',

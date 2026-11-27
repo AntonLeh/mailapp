@@ -265,6 +265,22 @@ class _InboxScreenState extends State<InboxScreen> {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Row(
+                  children: [
+                    Image.asset('assets/icon/app_icon.png', height: 36),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Mail',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 24),
               ListTile(
                 leading: SenderAvatar(name: account),
                 title: Text(

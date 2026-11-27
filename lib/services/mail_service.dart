@@ -97,6 +97,18 @@ class MailService {
         message.isFlagged = true;
       });
 
+  /// Stern entfernen.
+  Future<void> unsetFlagged(Mailbox box, MimeMessage message) =>
+      _run((c) async {
+        await c.selectMailbox(box);
+        await c.store(
+          _uidSequence(message),
+          [MessageFlags.flagged],
+          action: StoreAction.remove,
+        );
+        message.isFlagged = false;
+      });
+
   /// Nachricht in einen anderen Ordner verschieben (z. B. Papierkorb, Spam).
   Future<void> moveMessage(Mailbox from, MimeMessage message, Mailbox to) =>
       _run((c) async {

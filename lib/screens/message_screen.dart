@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:enough_mail/enough_mail.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../services/mail_service.dart';
@@ -78,6 +81,39 @@ class _MessageScreenState extends State<MessageScreen> {
         () => widget.service.setFlagged(widget.box, _m),
         leaves: false,
       );
+
+  Future<void> _unflag() => _run(
+        () => widget.service.unsetFlagged(widget.box, _m),
+        leaves: false,
+      );
+
+  /// Speichert einen Anhang über den Dateidialog des Systems.
+  Future<void> _saveAttachment(ContentInfo info) async {
+    final name = info.fileName ?? 'anhang';
+    setState(() => _busy = true);
+    try {
+      final bytes = await widget.service.fetchAttachment(widget.box, _m, info);
+      if (bytes == null) {
+        _snack('Anhang ist leer.');
+        return;
+      }
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Anhang speichern',
+        fileName: name,
+        bytes: bytes,
+      );
+      if (path == null) return; // Dialog abgebrochen
+      // Auf dem Desktop schreibt file_picker die Datei nicht selbst.
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        await File(path).writeAsBytes(bytes);
+      }
+      _snack('Gespeichert: $name');
+    } catch (e) {
+      _snack('Speichern fehlgeschlagen: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _moveTo(Mailbox? target, String what) async {
     if (target == null) {
@@ -189,7 +225,7 @@ class _MessageScreenState extends State<MessageScreen> {
           IconButton(
             tooltip: 'Markieren',
             icon: Icon(_m.isFlagged ? Icons.star : Icons.star_border),
-            onPressed: _busy || _m.isFlagged ? null : _flag,
+            onPressed: _busy ? null : (_m.isFlagged ? _unflag : _flag),
           ),
           IconButton(
             tooltip: 'Als Spam verschieben',
@@ -296,7 +332,17 @@ class _MessageScreenState extends State<MessageScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Herunterladen',
+                        icon: const Icon(Icons.download_outlined),
+                        onPressed: _busy ? null : () => _saveAttachment(info),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                   onTap: _busy ? null : () => _openAttachment(info),
                 ),
               ),

@@ -36,22 +36,15 @@ jobs:
 
       - run: flutter pub get
 
-      - name: API-Diagnose (Anhänge, Flags, file_picker)
+      - name: App-Icons erzeugen
+        run: dart run flutter_launcher_icons
+
+      - name: API-Diagnose addBinary
         continue-on-error: true
         run: |
           D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
-          F=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/file_picker-* | head -1)
-          echo "== MessageBuilder attach"
-          grep -rn -E "addBinary\(|addFile\(|addAttachment\(|static MediaType guessFromFileName|guessFromFileName\(" "$D/lib/src/mail/message_builder.dart" "$D/lib/src/media_type.dart" "$D/lib/src/mail/mail_client.dart" 2>/dev/null | cut -c1-200 | head -20
-          grep -rln "addBinary(" "$D/lib" | head -3
-          echo "== store signature + StoreAction"
-          grep -n -A8 "Future<StoreImapResult> store(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180
-          grep -rn -E "enum StoreAction|StoreAction\.(remove|add|replace)" "$D/lib/src" | cut -c1-180 | head -6
-          grep -rn -E "class MessageFlags|static const String flagged|static const String seen" "$D/lib/src" | cut -c1-180 | head -5
-          echo "== file_picker"
-          grep -rn -E "Future<String\?> saveFile\(|Future<FilePickerResult\?> pickFiles\(" -A12 "$F/lib/src/file_picker.dart" "$F/lib/src/platform_file_picker.dart" 2>/dev/null | cut -c1-180 | head -60
-          echo "== ContentInfo fields"
-          grep -rn -E "class ContentInfo|fetchId|fileName|contentType" "$D/lib/src/mail/content_info.dart" 2>/dev/null | cut -c1-160 | head -8
+          grep -n -A8 -E "(void|MessageBuilder|Future<[^>]*>|[A-Za-z]+) +addBinary\(" "$D/lib/src/message_builder.dart" | cut -c1-180 | head -30
+          grep -n -A6 -E "addFile\(|addAttachment\(|static MessageBuilder prepareMultipart" "$D/lib/src/message_builder.dart" | cut -c1-180 | head -30
 
       - run: flutter build apk --release
 
@@ -74,6 +67,9 @@ jobs:
         run: flutter create . --project-name mailapp --org de.anton.mail --platforms windows
 
       - run: flutter pub get
+
+      - name: App-Icons erzeugen
+        run: dart run flutter_launcher_icons
 
       - run: flutter build windows --release
 
