@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import '../models/mail_account.dart';
 import '../services/mail_service.dart';
 import '../services/notifier.dart';
+import '../services/quarantine.dart';
 import '../ui/format.dart';
 import '../ui/widgets.dart';
 import 'compose_screen.dart';
 import 'message_screen.dart';
+import 'quarantine_screen.dart';
 
 /// Welche Nachrichten in der Liste angezeigt werden.
 enum MailFilter {
@@ -64,6 +66,9 @@ class _InboxScreenState extends State<InboxScreen> {
 
   // Neue-Mail-Prüfung: höchste bekannte UID im Posteingang.
   int? _lastUid;
+
+  // Anzahl der Mails in der Quarantäne (für das Menü).
+  int _quarantined = 0;
 
   // Mehrfachauswahl (über UIDs).
   final Set<int> _selected = {};
@@ -183,6 +188,47 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
+  /// Verdächtige Mails (Spam, Virus, gefährliche Anhänge) kommen in die lokale
+  /// Quarantäne und werden im Server-Spam-Ordner abgelegt. Gilt nur für den Posteingang.
+  Future<List<MimeMessage>> _sortOutSuspicious(
+    Mailbox box,
+    List<MimeMessage> messages,
+  ) async {
+    if (!box.hasFlag(MailboxFlag.inbox)) return messages;
+    try {
+      final known = (await QuarantineStore.all()).map((e) => e.key).toSet();
+      final kept = <MimeMessage>[];
+      final moved = <MimeMessage>[];
+      for (final m in messages) {
+        final key = SuspicionCheck.keyOf(m);
+        if (known.contains(key)) continue; // schon in Quarantäne: ausblenden
+        final reason = SuspicionCheck.reasonFor(m);
+        if (reason == null) {
+          kept.add(m);
+          continue;
+        }
+        await QuarantineStore.add(m, reason);
+        known.add(key);
+        moved.add(m);
+      }
+      final junk = MailService.findJunk(_boxes);
+      if (moved.isNotEmpty && junk != null) {
+        try {
+          await _service.moveMessages(box, moved, junk);
+        } catch (_) {
+          // Bleibt im Posteingang, ist aber lokal in Quarantäne und ausgeblendet.
+        }
+      }
+      if (moved.isNotEmpty) {
+        _snack('${moved.length} verdächtige Mail(s) in die Quarantäne verschoben.');
+      }
+      _quarantined = (await QuarantineStore.all()).length;
+      return kept;
+    } catch (_) {
+      return messages;
+    }
+  }
+
   /// Lädt die erste Seite neu und ersetzt die Liste.
   Future<void> _refresh() async {
     final box = _current;
@@ -193,11 +239,12 @@ class _InboxScreenState extends State<InboxScreen> {
     });
     try {
       final page = await _service.fetchPage(box, page: 0);
+      final kept = await _sortOutSuspicious(box, page.messages);
       if (!mounted) return;
       setState(() {
         _messages
           ..clear()
-          ..addAll(page.messages);
+          ..addAll(kept);
         _page = 0;
         _hasMore = page.hasMore;
       });
@@ -215,9 +262,10 @@ class _InboxScreenState extends State<InboxScreen> {
     setState(() => _loadingMore = true);
     try {
       final page = await _service.fetchPage(box, page: _page + 1);
+      final kept = await _sortOutSuspicious(box, page.messages);
       if (!mounted) return;
       setState(() {
-        _messages.addAll(page.messages);
+        _messages.addAll(kept);
         _page += 1;
         _hasMore = page.hasMore;
       });
@@ -242,10 +290,12 @@ class _InboxScreenState extends State<InboxScreen> {
       final previous = _lastUid;
       _lastUid = newest;
       if (previous == null) return; // erste Runde: nur Ausgangspunkt merken
-      final fresh = headers
-          .where((m) => (m.uid ?? 0) > previous && !m.isSeen)
+      // Verdächtige Mails nicht melden; sie landen beim nächsten Abruf in der Quarantäne.
+      final arrived = headers.where((m) => (m.uid ?? 0) > previous).toList();
+      if (arrived.isEmpty) return;
+      final fresh = arrived
+          .where((m) => !m.isSeen && SuspicionCheck.reasonFor(m) == null)
           .toList();
-      if (fresh.isEmpty) return;
       for (final m in fresh.take(3)) {
         final from = m.from?.firstOrNull;
         await Notifier.show(
@@ -581,6 +631,20 @@ class _InboxScreenState extends State<InboxScreen> {
                 leading: const Icon(Icons.create_new_folder_outlined),
                 title: const Text('Ordner anlegen'),
                 onTap: _createFolder,
+              ),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                leading: const Icon(Icons.shield_outlined),
+                title: const Text('Quarantäne'),
+                trailing: _quarantined > 0 ? Text('$_quarantined') : null,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const QuarantineScreen()),
+                  );
+                },
               ),
             ],
           ),
