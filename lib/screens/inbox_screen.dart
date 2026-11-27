@@ -81,13 +81,27 @@ class _InboxScreenState extends State<InboxScreen> {
 
   Mailbox? get _trash => MailService.findTrash(_boxes);
 
-  /// Systemordner lassen sich nicht umbenennen oder löschen.
-  bool _isSystemFolder(Mailbox box) =>
-      box.hasFlag(MailboxFlag.inbox) ||
-      box.hasFlag(MailboxFlag.trash) ||
-      box.hasFlag(MailboxFlag.junk) ||
-      box.hasFlag(MailboxFlag.sent) ||
-      box.hasFlag(MailboxFlag.drafts);
+  Mailbox? get _inbox =>
+      _boxes.where((b) => b.hasFlag(MailboxFlag.inbox)).firstOrNull ??
+      _boxes.where((b) => b.name.toLowerCase() == 'inbox').firstOrNull;
+
+  /// Systemordner lassen sich nicht umbenennen oder löschen. Erkannt wird über
+  /// die Server-Markierung oder, falls der Server keine liefert, über den Namen.
+  bool _isSystemFolder(Mailbox box) {
+    if (box.hasFlag(MailboxFlag.inbox) ||
+        box.hasFlag(MailboxFlag.trash) ||
+        box.hasFlag(MailboxFlag.junk) ||
+        box.hasFlag(MailboxFlag.sent) ||
+        box.hasFlag(MailboxFlag.drafts)) {
+      return true;
+    }
+    const systemNames = {
+      'inbox', 'sent', 'sent items', 'sent messages', 'gesendet',
+      'gesendete elemente', 'drafts', 'entwürfe', 'entwurf', 'trash',
+      'deleted items', 'papierkorb', 'junk', 'junk e-mail', 'spam',
+    };
+    return systemNames.contains(box.name.toLowerCase());
+  }
 
   Future<void> _loadFolders() async {
     setState(() {
@@ -295,7 +309,11 @@ class _InboxScreenState extends State<InboxScreen> {
     Navigator.of(context).pop(); // Drawer schließen
     final name = await _askName('Neuer Ordner');
     if (name == null || name.isEmpty) return;
-    await _folderAction(() => _service.createFolder(name), 'Ordner angelegt.');
+    final parent = _inbox;
+    await _folderAction(
+      () => _service.createFolder(name, parent: parent),
+      'Ordner angelegt.',
+    );
   }
 
   Future<void> _renameFolder(Mailbox box) async {

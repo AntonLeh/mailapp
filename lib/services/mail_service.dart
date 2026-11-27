@@ -119,16 +119,24 @@ class MailService {
         return result.messages;
       });
 
-  /// Neuen Ordner auf oberster Ebene anlegen.
-  Future<void> createFolder(String name) =>
+  /// Neuen Ordner anlegen. Mit [parent] (z. B. Posteingang) entsteht er darunter,
+  /// sonst auf oberster Ebene. IMAP verlangt den vollständigen Pfad inkl. Namensraum.
+  Future<void> createFolder(String name, {Mailbox? parent}) =>
       _run((c) async {
-        await c.createMailbox(name);
+        final path = parent == null
+            ? name
+            : '${parent.encodedPath}${parent.pathSeparator}$name';
+        await c.createMailbox(path);
       });
 
-  /// Ordner umbenennen.
+  /// Ordner umbenennen. Der neue Name bleibt auf derselben Ebene.
   Future<void> renameFolder(Mailbox box, String newName) =>
       _run((c) async {
-        await c.renameMailbox(box, newName);
+        final sep = box.pathSeparator;
+        final idx = box.encodedPath.lastIndexOf(sep);
+        final parentPath =
+            idx < 0 ? '' : '${box.encodedPath.substring(0, idx)}$sep';
+        await c.renameMailbox(box, '$parentPath$newName');
       });
 
   /// Ordner löschen (samt Inhalt).
