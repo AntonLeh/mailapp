@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:enough_mail/enough_mail.dart';
@@ -32,12 +33,31 @@ class MailService {
     return client;
   }
 
+  /// Höchstdauer einer Operation. Antwortet der Server nicht, bricht sie ab,
+  /// statt die Oberfläche dauerhaft im Ladezustand zu lassen.
+  static const _opTimeout = Duration(seconds: 45);
+
   Future<T> _run<T>(Future<T> Function(ImapClient client) action) async {
-    final client = await _connectImap();
+    ImapClient? client;
     try {
-      return await action(client);
+      client = await _connectImap().timeout(_opTimeout);
+      return await action(client).timeout(_opTimeout);
+    } on TimeoutException {
+      throw StateError('Der Server antwortet nicht. Bitte erneut versuchen.');
     } finally {
-      await client.logout();
+      await _close(client);
+    }
+  }
+
+  /// Sauber abmelden; hängt das, wird die Verbindung hart getrennt.
+  Future<void> _close(ImapClient? client) async {
+    if (client == null) return;
+    try {
+      await client.logout().timeout(const Duration(seconds: 5));
+    } catch (_) {
+      try {
+        await client.disconnect();
+      } catch (_) {}
     }
   }
 
