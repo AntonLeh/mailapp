@@ -33,7 +33,8 @@ jobs:
           grep -q 'android.permission.INTERNET' $MANIFEST || \
             sed -i 's|<manifest xmlns:android="http://schemas.android.com/apk/res/android">|&\n    <uses-permission android:name="android.permission.INTERNET" />|' $MANIFEST
           sed -i -E 's/minSdk(Version)? *(=|) *flutter\.minSdkVersion/minSdk = 23/' android/app/build.gradle* || true
-          sed -i -E 's/compileSdk(Version)? *(=|) *flutter\.compileSdkVersion/compileSdk = 36/' android/app/build.gradle* || true
+          sed -i -E 's/compileSdk *=.*/compileSdk = 36/' android/app/build.gradle* || true
+          grep -n -E 'compileSdk|minSdk' android/app/build.gradle* || true
 
       - run: flutter pub get
 
