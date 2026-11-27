@@ -62,8 +62,8 @@ class ProviderPreset {
 
   static const freenet = ProviderPreset(
     name: 'Freenet',
-    imapHost: 'imap.freenet.de',
-    smtpHost: 'smtp.freenet.de',
+    imapHost: 'mx.freenet.de',
+    smtpHost: 'mx.freenet.de',
     smtpPort: 465,
     smtpImplicitTls: true,
   );
