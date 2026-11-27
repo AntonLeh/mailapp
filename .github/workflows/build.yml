@@ -48,6 +48,12 @@ jobs:
           grep -n -A8 -E "(void|MessageBuilder|Future<[^>]*>|[A-Za-z]+) +addBinary\(" "$D/lib/src/message_builder.dart" | cut -c1-180 | head -30
           grep -n -A6 -E "addFile\(|addAttachment\(|static MessageBuilder prepareMultipart" "$D/lib/src/message_builder.dart" | cut -c1-180 | head -30
 
+      - name: API-Diagnose Ordner
+        continue-on-error: true
+        run: |
+          D=$(ls -d "$HOME"/.pub-cache/hosted/pub.dev/enough_mail-* | head -1)
+          grep -n -A6 -E "Future<[^=]*> +(createMailbox|renameMailbox|deleteMailbox|subscribeMailbox)\(" "$D/lib/src/imap/imap_client.dart" | cut -c1-180 | head -40
+
       - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
