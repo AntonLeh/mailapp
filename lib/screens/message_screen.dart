@@ -4,6 +4,7 @@ import 'package:enough_mail/enough_mail.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/mail_service.dart';
 import '../ui/format.dart';
@@ -199,6 +200,13 @@ class _MessageScreenState extends State<MessageScreen> {
           padding: const EdgeInsets.all(12),
           child: HtmlWidget(
             html,
+            onTapUrl: (url) async {
+              final uri = Uri.tryParse(url);
+              if (uri == null) return true;
+              // Links öffnen im Standardbrowser, nicht in der App.
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              return true;
+            },
             customStylesBuilder: (element) {
               // Viele Newsletter-Mails legen ihre Tabelle mit festen oder
               // prozentualen Breiten an, die der Renderer sonst zu schmal berechnet.
