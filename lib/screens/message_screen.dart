@@ -197,7 +197,20 @@ class _MessageScreenState extends State<MessageScreen> {
         child: Container(
           color: Colors.white,
           padding: const EdgeInsets.all(12),
-          child: HtmlWidget(html),
+          child: HtmlWidget(
+            html,
+            customStylesBuilder: (element) {
+              // Viele Newsletter-Mails legen ihre Tabelle mit festen oder
+              // prozentualen Breiten an, die der Renderer sonst zu schmal berechnet.
+              if (element.localName == 'table') {
+                return {'width': '100%', 'max-width': '100%'};
+              }
+              if (element.localName == 'img') {
+                return {'max-width': '100%', 'height': 'auto'};
+              }
+              return null;
+            },
+          ),
         ),
       );
     }
